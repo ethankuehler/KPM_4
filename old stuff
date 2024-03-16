@@ -1,0 +1,370 @@
+//convert R3 into index of vector
+int location(R3 R) {
+    return (R[0] + R[1]*Ly + R[2]*Lz*Ly)*2;
+}
+
+site2D location(R3 R, const vec& v) {
+    int a = location(R);
+    int b = a + 1;
+    return site2D{v[a], v[b]};
+}
+
+int location(int x, int y, int z) {
+    if (x < 0) x = 1;
+    if (x >= Lx) x = Lx - 2;//why 2??
+    if (y < 0) y = 1;
+    if (y >= Ly) y = Ly - 2;
+    if (z < 0) z = 1;
+    if (z >= Lz) z = Lz - 2;
+    return (x + y*Lx + z*Lx*Ly)*2;
+}
+
+std::vector<Neighbor3D> Gen_Neighbors() {
+    auto list = std::vector<Neighbor3D>(Lsize);
+
+    int counter = 0;
+    for(int x = 0; x < Lx; x++){
+        for(int y = 0; y < Ly; y++){
+            for(int z = 0; z < Lz; z++) {
+                Neighbor3D neighbor;
+                neighbor[0] = location({x, y, z});
+
+                //+x and -x
+                if(x + 1 < Lx) {
+                    neighbor[1] = location({x + 1, y, z});
+                } else {
+                    neighbor[1] = location({0, y, z});
+                }
+
+                if(x - 1 >= 0) {
+                    neighbor[2] = location({x - 1, y, z});
+                } else {
+                    neighbor[2] = location({Lx - 1, y, z});
+                }
+
+                //+y and -y
+                if(y + 1 < Ly) {
+                    neighbor[3] = location({x, y + 1, z});
+                } else {
+                    neighbor[3] = location({x, 0, z});
+                }
+
+                if(y - 1 >= 0) {
+                    neighbor[4] = location({x, y - 1, z});
+                } else {
+                    neighbor[4] = location({x, Ly - 1, z});
+                }
+
+                //+z and -z
+                if(z + 1 < Lz) {
+                    neighbor[5] = location({x, y, z + 1});
+                } else {
+                    neighbor[5] = location({x, y, Lz - 1});
+                }
+
+                if(z - 1 >= 0) {
+                    neighbor[6] = location({x, y, z - 1});
+                } else {
+                    neighbor[6] = location({x, y, Lz - 1});
+                }
+                list[counter] = neighbor;
+                counter++;
+            }
+        }
+    }
+
+    return list;
+}
+
+/*
+void Weyl(vec& out, const vec& v) {
+    for(int i = 0; i < neighborsList.size(); i++) {
+        Neighbor3D neighbors = neighborsList[i];
+        site R = location(neighbors[0], v);
+        site O = {0, 0};
+
+        for(int j = 0; j < 3; j++){
+            int a = j*2 + 1;
+            int b = j*2 + 2;
+            site RP = location(neighbors[a], v);
+            site RM = location(neighbors[b], v);
+            O += (T[j]*RP + T[j]*RM);
+        }
+        O += -m*sz*R;
+
+        int L = location(neighborsList[i][0]);
+        out[L] = O[0]/scale;
+        out[L + 1] = O[1]/scale;
+    }
+}*/
+
+/*
+void H_func( vec &o, const vec &v, const int L, REAL t, REAL tp, REAL m, REAL scale) {
+    t = t/(2*scale);
+    tp = tp/(2*scale);
+    m = m/scale;
+    for (int z = 0; z < L; z++) {
+        for (int y = 0; y < L; y++) {
+            for (int x = 0; x < L; x++) {
+                int i = location(x, y, z, L);
+                int a = i;
+                int b = i + 1;
+
+                //diagonal -m*sig_z term
+                o[a] = -m*v[a];
+                o[b] = m*v[b];
+
+                //+x upper half Tx term
+                int k = location(x + 1, y, z, L);
+                o[a] += t*v[k] + ONE*tp*v[k + 1];
+                o[b] += ONE*tp*v[k] - t*v[k + 1];
+                //+x lower half
+                k = location(x - 1, y, z, L);
+                o[a] += t*v[k] - ONE*tp*v[k + 1];
+                o[b] += -ONE*tp*v[k] - t*v[k + 1];
+
+
+                //+y upper half Ty term
+                k = location(x, y + 1, z, L);
+                o[a] += t*v[k] - ONE*tp*v[k + 1];
+                o[b] += +ONE*tp*v[k] - t*v[k + 1];
+                //+y lower half
+                k = location(x, y - 1, z, L);
+                o[a] += t*v[k] - ONE*tp*v[k + 1];
+                o[b] += ONE*tp*v[k] - t*v[k + 1];
+
+
+                //+z upper half
+                k = location(x, y, z + 1, L);
+                o[a] += t*v[k];
+                o[b] += -t*v[k + 1];
+                //+z lower half
+                k = location(x, y, z - 1, L);
+                o[a] += t*v[k];
+                o[b] += -t*v[k + 1];
+
+            }
+        }
+    }
+}
+*/
+
+void H_func_locations( vec &o, const vec &v) {
+    for(int i = 0; i < neighborsList.size(); i++) {
+        Neighbor3D neighbors = neighborsList[i];
+        int a = neighbors[0];
+        int b = a + 1;
+
+        COMPLEX oa = 0;
+        COMPLEX ob = 0;
+
+        //diagonal -m*sig_z term
+        oa = -m*v[a];
+        ob = m*v[b];
+
+        //+x upper half Tx term
+        int k = neighbors[1];;
+        oa += t*v[k] + ONE*tp*v[k + 1];
+        ob += ONE*tp*v[k] - t*v[k + 1];
+        //+x lower half
+        k = neighbors[2];;
+        oa += t*v[k] - ONE*tp*v[k + 1];
+        ob += -ONE*tp*v[k] - t*v[k + 1];
+
+
+        //+y upper half Ty term
+        k = neighbors[3];;
+        oa += t*v[k] - ONE*tp*v[k + 1];
+        ob += +ONE*tp*v[k] - t*v[k + 1];
+        //+y lower half
+        k = neighbors[4];;
+        oa += t*v[k] - ONE*tp*v[k + 1];
+        ob += ONE*tp*v[k] - t*v[k + 1];
+
+
+        //+z upper half
+        k = neighbors[5];;
+        oa += t*v[k];
+        ob += -t*v[k + 1];
+        //+z lower half
+        k = neighbors[6];;
+        oa += t*v[k];
+        ob += -t*v[k + 1];
+
+
+        //scaling the energy
+        o[a] = oa/scale;
+        o[b] = ob/scale;
+
+    }
+}
+
+void H_func_locations_new( vec &o, const vec &v) {
+    for(int i = 0; i < neighborsList.size(); i++) {
+        Neighbor3D neighbors = neighborsList[i];
+        int a = neighbors[0];
+        int b = a + 1;
+
+        COMPLEX oa = 0;
+        COMPLEX ob = 0;
+        COMPLEX va = 0;
+        COMPLEX vb = 0;
+
+        //diagonal -m*sig_z term
+        oa = -m*v[a];
+        ob = m*v[b];
+
+        //+x
+        int plus = neighbors[1];
+        int minus = neighbors[2];
+        va = v[plus] + v[minus];
+        vb = v[plus + 1] + v[minus + 1];
+        oa += t*va + tp*vb;
+        ob += tp*va - t*vb;
+
+
+        //+y
+        plus = neighbors[3];
+        minus = neighbors[4];
+        va = v[plus] + v[minus];
+        vb = v[plus + 1] + v[minus + 1];
+        oa += t*va - ONE*tp*vb;
+        ob += ONE*tp*va - t*vb;
+
+
+        //+z
+        plus = neighbors[5];
+        minus = neighbors[6];
+        va = v[plus] + v[minus];
+        vb = v[plus + 1] + v[minus + 1];
+        oa += t*va;
+        ob += -t*vb;
+
+
+        //scaling the energy
+        o[a] = oa/scale;
+        o[b] = ob/scale;
+    }
+}
+
+std::vector<REAL> find_mu() {
+    omp_set_num_threads(12);
+    std::vector<REAL> mu(ORDER, 0);
+#pragma omp parallel for
+    for(int i = 0; i < NR; i++){
+        //defining vectors and doing inital steps
+        vec v(SIZE);
+        for (auto &j : v){
+            j = std::exp(distr(eng) * ONE);
+        }
+        v.normalize();
+        vec T0 = v;
+        vec T1(SIZE);
+        H_func_locations(T1, v);
+        //Weyl(T1, v);
+        vec T2(SIZE);
+
+        std::complex<REAL> weight = 0;
+        std::cout << "doing the " << i + 1 << " R" << std::endl;
+        for (int j = 0; j < int(ORDER/2); j++) {
+            weight = T0.adjoint()*T0;
+            mu[2*j] += 2*weight.real() - 1; //mu_2n = 2*<a_n|a_n> - 1
+            H_func_locations(T2, 2*T1);
+            //Weyl(T2, T1);
+            T2 -= T0; // |a_n+1> = 2H|a_n> - |a_(n-1)>
+            T0 = T1;
+            T1 = T2;
+        }
+    }
+    for(auto& i : mu){
+        i = i/NR;
+    }
+    return mu;
+}
+
+std::vector<REAL> find_mu_stab() {
+    std::vector<REAL> mu = std::vector<REAL>(ORDER, 0);
+
+#pragma omp parallel for
+    for (int i = 0; i < NR; i++) {
+        vec v(SIZE);
+        for (auto &j : v){
+            j = std::exp(distr(eng) * COMPLEX (1i));
+        }
+        v.normalize();
+        vec T0 = v;
+        vec T1(SIZE);
+        H_func_locations(T1, v);
+        //Weyl(T1, v);
+        vec T2(SIZE);
+
+        std::complex<REAL> weight = 0;
+        std::cout << "doing the " << i + 1 << " R" << std::endl;
+        for (int j = 0; j < ORDER; j++) {
+            weight = v.adjoint()*T0;
+            mu[j] += weight.real();
+            H_func_locations(T2, 2*T1);
+            T2 -= T0;
+            T0 = T1;
+            T1 = T2;
+        }
+    }
+    for(auto& i : mu){
+        i = i/NR;
+    }
+
+    return mu;
+}
+
+std::vector<REAL> find_mu_stab(const std::function<void(vec&, const vec&)>& A) {
+    std::vector<REAL> mu = std::vector<REAL>(ORDER, 0);
+
+#pragma omp parallel for
+    for (int i = 0; i < NR; i++) {
+        vec v(SIZE);
+        for (auto &j : v){
+            j = std::exp(distr(eng) * COMPLEX (1i));
+        }
+        v.normalize();
+        vec T0 = v;
+        vec T0_mod = v;
+        vec T1(SIZE);
+        H_func_locations(T1, v);
+        //Weyl(T1, v);
+        vec T2(SIZE);
+
+        std::complex<REAL> weight = 0;
+        std::cout << "doing the " << i + 1 << " R" << std::endl;
+        for (int j = 0; j < ORDER; j++) {
+            A(T0_mod, T0);
+            weight = v.adjoint()*T0_mod;
+            mu[j] += weight.real();
+            H_func_locations(T2, 2*T1);
+            T2 -= T0;
+            T0 = T1;
+            T1 = T2;
+        }
+    }
+    for(auto& i : mu){
+        i = i/NR;
+    }
+
+    return mu;
+}
+
+const mat2D sx{{0, 1},{1, 0}};
+const mat2D sy{{0, -ONE},{ONE, 0}};
+const mat2D sz{{1, 0},{0, -1}};
+const mat2D I{{1, 0},{0, 1}};
+const std::array<mat2D, 4> s = {sx, sy, sz, I};
+const std::array<REAL, 3> tv = {t, t, t};
+const std::array<REAL, 3> tpv = {tp, tp, 0};
+const std::array<mat2D, 3> T = {
+        tv[0]*sz + tpv[0]*s[0],
+        tv[1]*sz + tpv[1]*s[1],
+        tv[2]*sz + tpv[2]*s[2]
+};
+
+
+std::vector<Neighbor3D> neighborsList(Lsize);
+//CONSTANT
