@@ -11,18 +11,18 @@
 
 //CONSTANT
 const int NR = 12;
-const int ORDER = 200;
+const int ORDER = 500;
 const int Lx = 100;
 const int Ly = 100;
-const int Lz = 300;
+const int Lz = 100;
 const int N = ORDER;
 const REAL eps = 0.1;
 const REAL t = 1.0;
 const REAL tp = 1.0;
 const REAL m = 1.5;
-const REAL I = 6;
-REAL M_0 = 0.5;
-REAL err = 0.01;
+const REAL I = 8;
+REAL M_0 = 0.25;
+REAL err = 0.001;
 
 inline void mag(vec &o, const vec &v) {
     for (int i = 0; i < v.size(); i += 2) {
@@ -263,6 +263,84 @@ find_M_2d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x
     return hubbard;
 }
 
+SystemHubbard3D
+find_M_3d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x, const REAL U, const REAL err,
+                     const REAL M_0) {
+    SystemHubbard3D hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, U, M_0);
+    //set up anti ferromagnetic state
+
+    //random number engine.
+    std::random_device rd;  // obtain a random seed from the OS
+    std::mt19937 eng(rd());  // seed the generator
+    std::uniform_real_distribution<REAL> distr(-0.5, 0.5);
+    REAL last = -1;
+
+    for (auto &i: hubbard.M) {
+        //i = distr(eng);
+        i = last*M_0;
+        last = -last;
+    }
+
+    std::vector<REAL> M(hubbard.M.size());
+    std::vector<REAL> M_old(hubbard.M.size());
+
+    M = hubbard.M;
+    bool stop = false;
+    int iter = 0;
+    REAL AVG_OLD = 0;
+    while (!stop) {
+        std::cout << "this is the " << iter << "'th iteration" << std::endl;
+        M_old = M;
+        //calculate M at all positions
+        int count = 0;
+        REAL precent = 0.10;
+#pragma omp parallel for shared(M_old, M, hubbard, Lx, Ly, Lz, count, std::cout, precent, kernal, x) default(none) schedule(static) collapse(3)
+        for (int zpos = 0; zpos < Lz; zpos++) {
+            for (int ypos = 0; ypos < Ly; ypos++) {
+                for (int xpos = 0; xpos < Lx; xpos++) {
+                    std::vector<REAL> mu = hubbard.local_SpectralDensity(mag, {xpos, ypos, zpos});
+                    auto t = trapz(x, Cheb(mu, x, kernal));
+                    //std::cout << t << std::endl;
+                    M[xpos + ypos*Lx + zpos*Lx*Lz] = t;
+                    if (omp_get_thread_num() == 0) {
+                        if (count%int(Lx*Ly*Lz/(omp_get_num_threads())*(precent)) == 0) {
+                            std::cout << REAL(count)/(Lx*Ly*Lz/(omp_get_num_threads()))*100 << "% t = " << t << " " << std::flush;
+                        }
+                        count++;
+                    }
+                }
+            }
+        }
+        std::cout << '\n';
+
+        //computing root mean sqaure of M
+        REAL MEAN = 0;
+        for (auto &i: M) {
+            MEAN += std::pow(i, 2)/M.size();
+        }
+        MEAN = std::sqrt(MEAN);
+        std::cout << "current U = " << U << std::endl;
+        std::cout << "current M RMS = " << MEAN << std::endl;
+
+        REAL AVG = 0;
+        //computing average change in M
+        for (int i = 0; i < M.size(); i++) {
+            AVG += std::abs(M[i] - M_old[i])/M.size();
+        }
+        std::cout << "current average change = " << AVG << std::endl;
+
+        if (AVG < err or std::abs(AVG - AVG_OLD) < err) {
+            std::cout << "stoping\n";
+            stop = true;
+        } else {
+            hubbard.M = M;
+            AVG_OLD = AVG;
+        }
+        iter++;
+    }
+    return hubbard;
+}
+
 std::vector<double> linspace(double start, double stop, int n) {
     std::vector<double> result;
     if (n <= 0) {
@@ -329,8 +407,15 @@ int main() {
         i++;
     }
      */
-    auto hubbard = find_M_2d_anti_ferro(kernal, x, I, err, M_0);
-    //auto hubbard = SystemHubbard2D(NR, ORDER, Lx, Ly, eps, t, I, M_0);
+    //auto hubbard = find_M_3d_anti_ferro(kernal, x, I, err, M_0);
+    auto hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, I, 0.463067);
+
+    int last = 1;
+    for (auto &i: hubbard.M) {
+        //i = distr(eng);
+        i = last*M_0;
+        last = -last;
+    }
 
     if (WriteToFile(hubbard.M, "../data/M.csv") != 0) return 1;
 
@@ -349,19 +434,19 @@ int main() {
 
     //DOS = Cheb(hubbard.local_DOS({Lx/2,Ly/2}), x, kernal);
     //if(WriteToFile(DOS, "../data/DOSlocal_Plot.csv") != 0) return 1;
-    DOS = Cheb(hubbard.local_DOS({Lx/2 + 1, Ly/2}), x, kernal);
+    DOS = Cheb(hubbard.local_DOS({Lx/2, Ly/2, Lz/2}), x, kernal);
     if (WriteToFile(DOS, "../data/DOSlocalover_Plot.csv") != 0) return 1;
 
-    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2, Ly/2}), x, kernal);
+    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2, Ly/2, Lz/2}), x, kernal);
     if (WriteToFile(DOS, "../data/DOSlocal_Plot.csv") != 0) return 1;
     N = trapz(x, DOS);
-    std::cout << "Final mag  = " << N << "and M = " << hubbard.M[Lx/2 + Ly/2*Lx] << std::endl;
+    std::cout << "Final mag  = " << N << "and M = " << hubbard.M[Lx/2 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
 
 
-    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2 + 1, Ly/2}), x, kernal);
+    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2 + 1, Ly/2, Lz/2}), x, kernal);
     if (WriteToFile(DOS, "../data/DOSlocalover_Plot.csv") != 0) return 1;
     N = trapz(x, DOS);
-    std::cout << "Final mag over = " << N << "and M = " << hubbard.M[Lx/2 + 1 + Ly/2*Lx] << std::endl;
+    std::cout << "Final mag over = " << N << "and M = " << hubbard.M[Lx/2 + 1 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
 
     /*
     int N = 20;

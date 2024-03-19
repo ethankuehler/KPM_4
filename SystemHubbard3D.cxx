@@ -6,7 +6,7 @@
 
 SystemHubbard3D::SystemHubbard3D(int nr, int order, int lx, int ly, int lz, REAL eps, REAL t, REAL I, REAL M_0)
 : NR(nr), ORDER(order), Lx(lx), Ly(ly), Lz(lz), T(t), I(I) {
-    std::cout << "size of full Lattice: 2*" << Lx << "x" << Ly << " = " << Lx*Ly*2 << std::endl;
+    std::cout << "size of full Lattice: 2x" << Lx << "x" << Ly << "x" << Lz << " = " << Lx*Ly*Lz*2 << std::endl;
     Lsize = Lx * Ly * Lz;
     SIZE = Lsize*Unit_Cell_size;
     scale = (12 + I)/(2 - eps);

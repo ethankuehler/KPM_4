@@ -15,4 +15,4 @@ if (OPENMP_FOUND)
 endif()
 
 
-add_executable(KPM_4 main.cpp lattice_vector.cxx lattice_vector.hxx System.cxx System.hxx Definitions.hxx SystemWeyl.cxx SystemWeyl.hxx SystemHubbard3D.cxx SystemHubbard3D.hxx SystemHubbard3D.hxx SystemHubbard2D.cxx SystemHubbard2D.hxx)
+add_executable(KPM_4 main.cpp lattice_vector.cxx lattice_vector.hxx System.cxx System.hxx Definitions.hxx SystemWeyl.cxx SystemWeyl.hxx SystemHubbard3D.cxx SystemHubbard3D.hxx SystemHubbard3D.hxx SystemHubbard2D.cxx SystemHubbard2D.hxx solver.hxx)
