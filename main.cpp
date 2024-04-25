@@ -11,17 +11,17 @@
 
 //CONSTANT
 const int NR = 12;
-const int ORDER = 500;
-const int Lx = 100;
-const int Ly = 100;
-const int Lz = 100;
+const int ORDER = 250;
+const int Lx = 25;
+const int Ly = 25;
+const int Lz = 25;
 const int N = ORDER;
 const REAL eps = 0.1;
 const REAL t = 1.0;
 const REAL tp = 1.0;
 const REAL m = 1.5;
-const REAL I = 8;
-REAL M_0 = 0.25;
+const REAL I = 10;
+REAL M_0 = 0.5;
 REAL err = 0.001;
 
 inline void mag(vec &o, const vec &v) {
@@ -62,10 +62,13 @@ int WriteToFile(const std::vector<REAL> &mu, const std::string &file_name) {
     outFile << std::setprecision(std::numeric_limits<REAL>::digits10);
 
     // Write the array of reals to the file, each real on a new line
-    for (const auto &value: mu) {
-        outFile << value << ","; // Use '\n' for new line; use ',' for same line with comma separation
+    for (int i = 0; i < mu.size(); i++) {
+        outFile << mu[i];
+        if(i + 1 < mu.size()) {
+            outFile << ',';
+        }
     }
-    outFile << "0.0\n";
+    outFile << "\n";
 
     // Close the file
     outFile.close();
@@ -126,7 +129,7 @@ REAL trapz(std::vector<REAL> x, std::vector<REAL> y) {
     return running;
 }
 
-REAL find_M_2d(std::vector<REAL> kernal, std::vector<REAL> x, REAL U, REAL err, REAL M) {
+REAL find_M_2d(const std::vector<REAL>& kernal, std::vector<REAL> x, REAL U, REAL err, REAL M) {
     SystemHubbard2D hubbard = SystemHubbard2D(NR, ORDER, Lx, Ly, eps, t, U, M);
     std::vector<std::function<void(vec &, const vec &)>> f;
     f.emplace_back(up);
@@ -163,7 +166,7 @@ REAL find_M_2d(std::vector<REAL> kernal, std::vector<REAL> x, REAL U, REAL err, 
     return M;
 }
 
-REAL find_M_3d(std::vector<REAL> &kernal, std::vector<REAL> &x, REAL U, REAL err, REAL M) {
+REAL find_M_3d(const std::vector<REAL> &kernal, std::vector<REAL> &x, REAL U, REAL err, REAL M) {
     SystemHubbard3D hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, U, M);
     std::vector<REAL> mu;
     REAL M_old = M;
@@ -263,22 +266,28 @@ find_M_2d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x
     return hubbard;
 }
 
-SystemHubbard3D
-find_M_3d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x, const REAL U, const REAL err,
-                     const REAL M_0) {
-    SystemHubbard3D hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, U, M_0);
+auto
+find_M_3d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x, const REAL U) {
+    auto hubbard = SystemWeyl(NR, ORDER, Lx, Ly, Lz, eps, t,tp,m, U);
     //set up anti ferromagnetic state
 
     //random number engine.
     std::random_device rd;  // obtain a random seed from the OS
     std::mt19937 eng(rd());  // seed the generator
     std::uniform_real_distribution<REAL> distr(-0.5, 0.5);
-    REAL last = -1;
 
-    for (auto &i: hubbard.M) {
-        //i = distr(eng);
-        i = last*M_0;
-        last = -last;
+
+    REAL Q = std::acos(m/t - 2);
+    for(int z = 0; z < Lz; z++) {
+        for(int y = 0; y < Lx; y++) {
+            for(int x = 0; x < Lx; x++) {
+                int n = (z + y + x) % 2;
+                int i = hubbard.lat_location({x, y, z});
+                REAL t = M_0*std::cos(2*Q*z + M_PI/2);
+                hubbard.M[i] = t;
+                //hubbard.M[i] = M_0*std::pow(-1, n);
+            }
+        }
     }
 
     std::vector<REAL> M(hubbard.M.size());
@@ -298,13 +307,12 @@ find_M_3d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x
         for (int zpos = 0; zpos < Lz; zpos++) {
             for (int ypos = 0; ypos < Ly; ypos++) {
                 for (int xpos = 0; xpos < Lx; xpos++) {
-                    std::vector<REAL> mu = hubbard.local_SpectralDensity(mag, {xpos, ypos, zpos});
-                    auto t = trapz(x, Cheb(mu, x, kernal));
-                    //std::cout << t << std::endl;
-                    M[xpos + ypos*Lx + zpos*Lx*Lz] = t;
+                    int loc = hubbard.lat_location({xpos, ypos, zpos});
+                    std::vector<REAL> mu = hubbard.LocalSpectralDensity(mag, {xpos, ypos, zpos});
+                    M[loc] = trapz(x, Cheb(mu, x, kernal));
                     if (omp_get_thread_num() == 0) {
                         if (count%int(Lx*Ly*Lz/(omp_get_num_threads())*(precent)) == 0) {
-                            std::cout << REAL(count)/(Lx*Ly*Lz/(omp_get_num_threads()))*100 << "% t = " << t << " " << std::flush;
+                            std::cout << int(REAL(count)/(Lx*Ly*Lz/(omp_get_num_threads()))*100) << "% t = " << M[loc] << " | " << std::flush;
                         }
                         count++;
                     }
@@ -313,7 +321,7 @@ find_M_3d_anti_ferro(const std::vector<REAL> &kernal, const std::vector<REAL> &x
         }
         std::cout << '\n';
 
-        //computing root mean sqaure of M
+        //computing root mean square of M
         REAL MEAN = 0;
         for (auto &i: M) {
             MEAN += std::pow(i, 2)/M.size();
@@ -378,90 +386,93 @@ int main() {
 
     std::cout << "starting program!!!" << std::endl;
 
-    /*
-    SystemHubbard3D hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, I, M_0);
-    std::vector<REAL> M_DOS;
-    REAL M;
-    REAL M_old = M_0;
-    */
-    /*
-    bool stop = false;
-    int i = 0;
-    while(!stop) {
-        std::cout << "this is the " << i << "'th iteration" << std::endl;
-        auto mu = hubbard.SpectralDensity(mag);
-        auto mag_spectrum = Cheb(mu, x, kernal);
-        M = trapz(x, mag_spectrum);
 
-        std::cout << "current U = " << I << std::endl;
-        std::cout << "current M = " << M << std::endl;
-        if((std::abs(M-M_old) < err) or (std::abs(M) < err))  {
-            stop = true;
-            std::cout << "stoping\n" << '\n';
-        } else {
-            for(auto& k : hubbard.M) {
-                k = M;
+    auto hubbard = find_M_3d_anti_ferro(kernal, x, I);
+    //auto hubbard = SystemWeyl(NR, ORDER, Lx, Ly, Lz, eps, t,tp,m, I);
+
+    /*REAL Q = std::acos(m/t - 2);
+    for(int z = 0; z < Lz; z++) {
+        for(int y = 0; y < Lx; y++) {
+            for(int x = 0; x < Lx; x++) {
+                int n = (z + y + x) % 2;
+                int i = hubbard.lat_location({x, y, z});
+                hubbard.M[i] = 0.5*std::cos(2*Q*z);//M_0*std::pow(-1, n);
             }
         }
-        M_old = M;
-        i++;
     }
-     */
-    //auto hubbard = find_M_3d_anti_ferro(kernal, x, I, err, M_0);
-    auto hubbard = SystemHubbard3D(NR, ORDER, Lx, Ly, Lz, eps, t, I, 0.463067);
+    */
 
-    int last = 1;
-    for (auto &i: hubbard.M) {
-        //i = distr(eng);
-        i = last*M_0;
-        last = -last;
-    }
 
     if (WriteToFile(hubbard.M, "../data/M.csv") != 0) return 1;
 
+    h_func f = {idenity, up, down};
     std::cout << "done! writing output and getting final DOS\n";
-    auto up_mu = hubbard.SpectralDensity(up);
-    auto UP_DOS = Cheb(up_mu, x, kernal);
+    auto mu = hubbard.SpectralDensityMulti(f);
+    auto UP_DOS = Cheb(mu[1], x, kernal);
     if (WriteToFile(UP_DOS, "../data/UP_Plot.csv") != 0) return 1;
-    auto DOWN_mu = hubbard.SpectralDensity(down);
-    auto DOWN_DOS = Cheb(DOWN_mu, x, kernal);
+    auto DOWN_DOS = Cheb(mu[2], x, kernal);
     if (WriteToFile(DOWN_DOS, "../data/DOWN_Plot.csv") != 0) return 1;
 
-    auto DOS = Cheb(hubbard.DOS(), x, kernal);
+    auto DOS = Cheb(mu[0], x, kernal);
     if (WriteToFile(DOS, "../data/DOS_Plot.csv") != 0) return 1;
     auto N = trapz(x, DOS);
     std::cout << "Final N = " << N << std::endl;
 
-    //DOS = Cheb(hubbard.local_DOS({Lx/2,Ly/2}), x, kernal);
-    //if(WriteToFile(DOS, "../data/DOSlocal_Plot.csv") != 0) return 1;
-    DOS = Cheb(hubbard.local_DOS({Lx/2, Ly/2, Lz/2}), x, kernal);
-    if (WriteToFile(DOS, "../data/DOSlocalover_Plot.csv") != 0) return 1;
+    f = {idenity, mag};
 
-    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2, Ly/2, Lz/2}), x, kernal);
-    if (WriteToFile(DOS, "../data/DOSlocal_Plot.csv") != 0) return 1;
+    mu = hubbard.LocalSpectralDensityMulti(f, {Lx/2, Ly/2, Lz/2});
+    DOS = Cheb(mu[0], x, kernal);
+    if (WriteToFile(DOS, "../data/DOS_local_Plot.csv") != 0) return 1;
+    DOS = Cheb(mu[1], x, kernal);
+    if (WriteToFile(DOS, "../data/DOS_local_mag_Plot.csv") != 0) return 1;
     N = trapz(x, DOS);
-    std::cout << "Final mag  = " << N << "and M = " << hubbard.M[Lx/2 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
+    std::cout << "Final mag  = " << N << " and M = " << hubbard.M[Lx/2 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
 
 
-    DOS = Cheb(hubbard.local_SpectralDensity(mag, {Lx/2 + 1, Ly/2, Lz/2}), x, kernal);
-    if (WriteToFile(DOS, "../data/DOSlocalover_Plot.csv") != 0) return 1;
+    mu = hubbard.LocalSpectralDensityMulti(f, {Lx/2 + 1, Ly/2, Lz/2});
+    DOS = Cheb(mu[0], x, kernal);
+    if (WriteToFile(DOS, "../data/DOS_local_over_Plot.csv") != 0) return 1;
+    DOS = Cheb(mu[1], x, kernal);
+    if (WriteToFile(DOS, "../data/DOS_local_over_mag_Plot.csv") != 0) return 1;
     N = trapz(x, DOS);
-    std::cout << "Final mag over = " << N << "and M = " << hubbard.M[Lx/2 + 1 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
+    std::cout << "Final mag over = " << N << " and M = " << hubbard.M[Lx/2 + 1 + Ly/2*Lx + Lz/2*Ly*Lx] << std::endl;
+
+    DOS = Cheb(hubbard.local_DOS({0,0,0}), x, kernal);
+    if (WriteToFile(DOS, "../data/DOS_edge.csv") != 0) return 1;
+    N = trapz(x, DOS);
+    std::cout << "edge state N = " << N << std::endl;
+
+
 
     /*
-    int N = 20;
-    REAL start = 4;
-    REAL end = 12;
-    std::vector<REAL> Ms(N);
-    std::vector<REAL> Us(N);
-    for(int i = 0; i < N; i++) {
-        REAL dx = (end-start)/REAL(N);
-        REAL U = start;
-        Ms[i] = find_M_3d(kernal, x, U + i*dx, err, M_0);
+    int N = 10;
+    REAL start = 5;
+    REAL end = 10;
+    std::vector<REAL> AVG_Ms(N + 1, 0);
+    std::vector<REAL> RMS_Ms(N + 1, 0);
+    std::vector<REAL> Us(N + 1, 0);
+    REAL dx = (end-start)/REAL(N);
+    REAL U = start;
+    for(int i = 0; i <= N; i++) {
+        auto model = find_M_3d_anti_ferro(kernal, x, U + i*dx);
+        REAL AVG = 0;
+        for(const auto& i : model.M) {
+            AVG += i/model.Lsize;
+        }
+        AVG_Ms[i] = AVG;
+
+        REAL RMS = 0;
+        for (auto &i: model.M) {
+            RMS += std::pow(i, 2)/model.Lsize;
+        }
+        RMS_Ms[i] = std::sqrt(RMS);
+
         Us[i] = U + i*dx;
     }
 
-    if(WriteToFile(Ms, "../data/Ms_Plot.csv") != 0) return 1;
+    if(WriteToFile(AVG_Ms, "../data/AVG_Ms_Plot.csv") != 0) return 1;
+    if(WriteToFile(RMS_Ms, "../data/RMS_Ms_Plot.csv") != 0) return 1;
     if(WriteToFile(Us, "../data/Us_Plot.csv") != 0) return 1;
-     */
+    */
+    return 0;
 }

@@ -3,11 +3,16 @@ import scipy.integrate as integrate
 import numpy as np
 
 
-x = np.loadtxt("/Users/bruvisland/CLionProjects/KPM_4/data/Us_Plot.csv", delimiter=',')[0:-1]
-y = np.loadtxt("/Users/bruvisland/CLionProjects/KPM_4/data/Ms_Plot.csv", delimiter=',')[0:-1]
+x = np.loadtxt("/Users/bruvisland/CLionProjects/KPM_4/data/Us_Plot.csv", delimiter=',')
+avg = np.loadtxt("/Users/bruvisland/CLionProjects/KPM_4/data/AVG_Ms_Plot.csv", delimiter=',')
+rms = np.loadtxt("/Users/bruvisland/CLionProjects/KPM_4/data/RMS_Ms_Plot.csv", delimiter=',')
 
-pp.plot(x, y)
+pp.plot(x, avg)
+pp.plot(x, rms)
 pp.xlabel("Interaction strength U")
-pp.ylabel("M_z")
-pp.errorbar(x, y, yerr=0.0001)
+pp.ylabel("average M_z")
+pp.title("Average M_z vs interaction strength")
+pp.errorbar(x, avg, yerr=0.001)
+pp.xticks(x)
+pp.savefig("new_flip.png")
 pp.show()

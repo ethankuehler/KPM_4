@@ -31,5 +31,7 @@ typedef Eigen::Matrix<std::complex<REAL>, 2, 2> mat2D;
 typedef std::complex<REAL> COMPLEX;
 //1i but setup for different types of REAL
 const std::complex<REAL> ONE{0, 1};
+//H function
+typedef std::vector<std::function<void(vec &, const vec &)>> h_func;
 
 #endif //KPM_4_DEFINITIONS_HXX

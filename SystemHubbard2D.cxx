@@ -165,7 +165,7 @@ std::vector<REAL> SystemHubbard2D::SpectralDensity(const std::function<void(vec 
     return mu;
 }
 
-std::vector<REAL> SystemHubbard2D::local_SpectralDensity(const std::function<void(vec &, const vec &)> &A, R2 loc)  const{
+std::vector<REAL> SystemHubbard2D::local_SpectralDensity(const std::function<void(vec &, const vec &)> &A, R2 loc) const {
     std::vector<REAL> mu = std::vector<REAL>(ORDER, 0); //weights
     //State that coraspons to that lattice site
     for(int i = 0; i < Unit_Cell_size; i++) {

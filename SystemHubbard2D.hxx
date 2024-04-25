@@ -6,7 +6,7 @@
 
 class SystemHubbard2D {
 public:
-    SystemHubbard2D(int nr, int order, int lx, int ly, REAL eps, REAL t, REAL U, REAL M_0);
+    SystemHubbard2D(int nr, int order, int lx, int ly, REAL eps, REAL t, REAL i, REAL M_0);
     std::vector<REAL> DOS() const;
     std::vector<REAL> local_DOS(R2 loc) const;
     std::vector<std::vector<REAL>> SpectralDensity(std::vector<std::function<void(vec &, const vec &)>>& A) const;
